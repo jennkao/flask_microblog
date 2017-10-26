@@ -1,4 +1,6 @@
 *.pyc
+*~
+*.swp
 *.pyo
 build/
 dist/
@@ -12,4 +14,4 @@ parts
 src/*.egg-info
 lib
 lib64
-.ini
+vars.py
