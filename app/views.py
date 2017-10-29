@@ -1,8 +1,18 @@
-from flask import render_template, flash, redirect, url_for
+from flask import render_template, flash, redirect, url_for, g
 from app import app, db
 from oauth import OAuthSignIn
 from models import User
-from flask_login import login_user, current_user, logout_user
+from flask_login import login_user, current_user, logout_user, login_required
+from datetime import datetime
+from .forms import EditForm
+
+@app.before_request
+def before_request():
+  g.user = current_user
+  if g.user.is_authenticated:
+    g.user.last_seen = datetime.utcnow()
+    db.session.add(g.user)
+    db.session.commit()
 
 @app.route('/')
 @app.route('/index')
@@ -28,11 +38,10 @@ def index():
     posts=posts
   )
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login')
 def login():
-  return render_template('login.html', 
-    title="Sign In"
-  )
+  user = current_user
+  return render_template('login.html', title="Sign In", user=user)
 
 @app.route('/authorize/<provider>')
 def oauth_authorize(provider):
@@ -63,7 +72,37 @@ def logout():
   logout_user()
   return redirect(url_for('index'))
 
+@app.route('/user/<nickname>')
+@login_required
+def user(nickname):
+  user = User.query.filter_by(nickname=nickname).first()
+  if user == None:
+    flash('User %s not found.' % nickname)
+    return redirect(url_for('index'))
+  posts = [
+    { 'author': user, 'body': 'Test post #1' },
+    { 'author': user, 'body': 'Test post #2 '}
+  ]
+  return render_template('user.html', 
+    user=user, 
+    posts=posts
+  )
 
+@app.route('/edit', methods=['GET', 'POST'])
+@login_required
+def edit():
+  form = EditForm()
+  if form.validate_on_submit():
+    g.user.nickname = form.nickname.data
+    g.user.about_me = form.about_me.data
+    db.session.add(g.user)
+    db.session.commit()
+    flash('Your changes have been saved')
+    return redirect(url_for('edit'))
+  else: 
+    form.nickname.data = g.user.nickname
+    form.about_me.data = g.user.about_me
+  return render_template('edit.html', form=form)
 
 
 
